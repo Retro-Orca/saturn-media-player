@@ -1,0 +1,15 @@
+/build/
+/videos/*
+!/videos/README.txt
+/vendor/*
+!/vendor/README.md
+*.exe
+*.dll
+*.bin
+*.iso
+*.cue
+*.svt
+*.p
+*.lst
+*.log
+*.zip

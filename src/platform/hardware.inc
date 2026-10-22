@@ -10,12 +10,27 @@ CD               equ $25890000
 CD_DATA          equ $25898000
 STATE            equ $060D0000
 STACK            equ $060FF000
-STREAM_RAM       equ $20200000
+STREAM_RAM       equ $26020000
 GROUP_SIZE       equ 55296
 GROUP_SECTORS    equ 27
-FRAME_SIZE       equ 1120
-SOUND_OFFSET     equ 46208
+FRAME_DIRECTORY  equ 12288
+SOUND_OFFSET     equ 46476
 SOUND_SIZE       equ 8820
+CODEBOOK_RAM     equ $06090000
+FRAME_RAM        equ $06098000
+AUDIO_RING       equ $10000
+AUDIO_RING_SIZE  equ 70560
+AUDIO_ORIGIN     equ STATE+128
+AUDIO_SKIP       equ STATE+132
+AUDIO_ACTIVE     equ STATE+136
+AUDIO_STARTS     equ STATE+140
+AUDIO_QUEUED     equ STATE+144
+FRAME_CHANGED    equ STATE+148
+NEXT_PREPARED    equ STATE+152
+NEXT_COPY_BYTES  equ STATE+156
+NEXT_COPY_GROUP  equ STATE+160
+AUDIO_NEXT       equ STATE+164
+AUDIO_COPY_BYTES equ STATE+168
 
 PAD_HELD         equ 0
 PAD_EDGE         equ 4
@@ -56,4 +71,47 @@ call macro target
     mov.l #target,r0
     jsr @r0
     nop
+    endm
+
+profile_start macro slot
+    ifdef TEST_BUILD
+    mov.l #$FFFFFE12,r1
+    mov.b @r1,r0
+    extu.b r0,r0
+    shll8 r0
+    mov r0,r2
+    add #1,r1
+    mov.b @r1,r0
+    extu.b r0,r0
+    or r2,r0
+    mov.l #STATE+slot,r1
+    mov.l r0,@r1
+    endif
+    endm
+
+profile_end macro startslot,resultslot
+    ifdef TEST_BUILD
+    mov.l #$FFFFFE12,r1
+    mov.b @r1,r0
+    extu.b r0,r0
+    shll8 r0
+    mov r0,r2
+    add #1,r1
+    mov.b @r1,r0
+    extu.b r0,r0
+    or r2,r0
+    mov.l #STATE+startslot,r1
+    mov.l @r1,r2
+    sub r2,r0
+    extu.w r0,r0
+    mov.l #STATE+resultslot,r1
+    mov.l @r1,r2
+    cmp/hi r2,r0
+    movt r3
+    neg r3,r3
+    xor r2,r0
+    and r3,r0
+    xor r2,r0
+    mov.l r0,@r1
+    endif
     endm

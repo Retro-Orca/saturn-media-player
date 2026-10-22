@@ -10,12 +10,14 @@
 
 #define VIDEO_WIDTH 320
 #define VIDEO_HEIGHT 224
-#define TILE_SIDE 8
-#define TILE_BYTES 128
-#define TILE_COMPONENTS 192
-#define CODEBOOK_ENTRIES 256
-#define CODEBOOK_BYTES 32768
-#define FRAME_BYTES 1120
+#define TILE_SIDE 4
+#define TILE_BYTES 32
+#define TILE_COMPONENTS 48
+#define CODEBOOK_ENTRIES 384
+#define CODEBOOK_BYTES 12288
+#define FRAME_PATCHES 1120
+#define FRAME_BANK_BYTES 140
+#define SOUND_OFFSET 46476
 #define GROUP_FRAMES 12
 #define AUDIO_SAMPLES 4410
 #define AUDIO_BYTES 8820
@@ -63,6 +65,7 @@ void write_video_header(FILE *file, uint32_t frames, uint32_t groups);
 void read_video_header(Movie *movie);
 void train_codebook(const uint8_t *tiles, int count, uint8_t *centers);
 unsigned nearest_codeword(const uint8_t *tile, const uint8_t *centers);
+unsigned tile_distance(const uint8_t *left, const uint8_t *right);
 void encode_group(FILE *output, const uint8_t *rgb, const uint8_t *audio);
 void make_font_and_titles(Movie *movies, int count);
 void write_catalog(Movie *movies, int count);

@@ -30,7 +30,9 @@ void verify_disc(const char *path)
                     uint8_t header[SECTOR_BYTES];
                     _fseeki64(file, (int64_t)lba * SECTOR_BYTES, SEEK_SET); read_all(file, header, sizeof(header));
                     uint32_t groups = get_be32(header + 20), frames = get_be32(header + 16);
-                    if (memcmp(header, "SVT1", 4) || !frames || groups != (frames + 11) / 12 || bytes != SECTOR_BYTES + (uint64_t)groups * GROUP_BYTES) fail("Invalid video extent");
+                    if (memcmp(header, "SVT2", 4) || get_be32(header + 4) != 2 || get_be32(header + 40) != CODEBOOK_ENTRIES ||
+                        get_be32(header + 44) != SOUND_OFFSET || !frames || groups != (frames + 11) / 12 ||
+                        bytes != SECTOR_BYTES + (uint64_t)groups * GROUP_BYTES) fail("Invalid video extent");
                     ++movies;
                 }
                 ++files;

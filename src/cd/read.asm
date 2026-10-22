@@ -78,16 +78,11 @@ cd_read_count:
     call cd_command
     tst r0,r0
     bt cd_read_done
-    mov r9,r2
-    shll8 r2
-    shll2 r2
-    mov.l #CD_DATA,r1
-cd_data_words:
-    mov.w @r1,r0
-    mov.w r0,@r8
-    add #2,r8
-    dt r2
-    bf cd_data_words
+    mov r8,r4
+    mov r9,r5
+    call cd_dma_read
+    tst r0,r0
+    bt cd_read_done
     mov.l #$0600,r4
     mov #0,r5
     mov #0,r6

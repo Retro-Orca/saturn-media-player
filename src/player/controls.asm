@@ -39,11 +39,10 @@ controls_toggle_check:
     bra controls_seek_check
     nop
 controls_resume:
+    call audio_start
+    call video_wait_vblank
     mov #1,r0
     mov.l r0,@(MODE,r14)
-    mov.l #PREPARED_GROUP,r1
-    mov #-1,r0
-    mov.l r0,@r1
 controls_seek_check:
     mov.l @(PAD_EDGE,r14),r0
     mov.l #BTN_L,r1

@@ -42,6 +42,10 @@ player_seek:
     mov.l #PREPARED_GROUP,r1
     mov #-1,r0
     mov.l r0,@r1
+    mov.l #NEXT_PREPARED,r1
+    mov.l r0,@r1
+    mov.l #NEXT_COPY_GROUP,r1
+    mov.l r0,@r1
     mov #4,r0
     mov.l r0,@(MODE,r14)
     call loading_draw
@@ -86,6 +90,18 @@ player_buffer_target:
     cmp/hs r1,r2
     bf player_buffer_done
     call video_tile_mode
+    mov.l @(PLAY_GROUP,r14),r4
+    mov r4,r0
+    and #1,r0
+    mov.l r0,@(DICT_BANK,r14)
+    call group_address
+    mov r0,r4
+    call video_dictionary
+    mov.l @(PLAY_GROUP,r14),r0
+    mov.l #PREPARED_GROUP,r1
+    mov.l r0,@r1
+    call audio_start
+    call video_wait_vblank
     mov #1,r0
     mov.l r0,@(MODE,r14)
     bra player_buffer_done
@@ -141,20 +157,23 @@ player_tick_address:
     mov r2,r0
     and #1,r0
     mov.l r0,@(DICT_BANK,r14)
+    mov.l #NEXT_PREPARED,r1
+    mov.l @r1,r0
+    cmp/eq r2,r0
+    bt player_tick_frame
     mov r8,r4
     call video_dictionary
-    mov r8,r4
-    mov.l @(PLAY_FRAME,r14),r5
-    call audio_start
 player_tick_frame:
     mov.l @(PLAY_FRAME,r14),r0
-    mov.l #FRAME_SIZE,r1
-    mulu.w r1,r0
-    sts macl,r4
+    shll2 r0
+    mov.l #FRAME_DIRECTORY,r1
+    add r8,r1
+    add r0,r1
+    mov.l @r1,r4
     add r8,r4
-    mov.l #32768,r0
-    add r0,r4
     call video_frame
+    call audio_pump
+    call player_prefetch
     call video_wait_vblank
     call video_present
     mov.l @(FRAME_NUMBER,r14),r0

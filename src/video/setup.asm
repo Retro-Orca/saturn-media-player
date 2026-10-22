@@ -85,6 +85,7 @@ video_bitmap_cycles:
     ltorg
 
 video_tile_mode:
+    sts.l pr,@-r15
     mov.l #VDP2+$20,r1
     mov #0,r0
     mov.w r0,@r1
@@ -95,27 +96,22 @@ video_tile_mode:
     mov #0,r0
     mov.w r0,@r1
     mov.l #VDP2+$3C,r1
-    mov #0,r0
     mov.w r0,@r1
     mov.l #VDP2+$10,r1
-    mov #4,r2
+    mov #8,r2
+    mov.l #$EEEE,r0
 video_tile_cycles:
-    mov.l #$EEEE,r0
-    mov.w r0,@r1
-    add #2,r1
-    mov.l #$EEEE,r0
     mov.w r0,@r1
     add #2,r1
     dt r2
     bf video_tile_cycles
-    mov.l #VDP2+$18,r1
-    mov.l #$00EE,r0
-    mov.w r0,@r1
-    mov.l #VDP2+$40,r1
-    mov.l #$1010,r0
-    mov.w r0,@r1
-    add #2,r1
-    mov.w r0,@r1
+    mov.l #VRAM+$30000,r4
+    mov #0,r5
+    call video_map_init
+    mov.l #VRAM+$70000,r4
+    mov.l #8192,r5
+    call video_map_init
+    lds.l @r15+,pr
     rts
     nop
     ltorg

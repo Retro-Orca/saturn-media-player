@@ -5,6 +5,21 @@
 copy_words:
     tst r6,r6
     bt copy_words_done
+    mov r4,r0
+    or r5,r0
+    or r6,r0
+    tst #3,r0
+    bf copy_words_short
+    shlr2 r6
+copy_longs_loop:
+    mov.l @r4+,r0
+    mov.l r0,@r5
+    add #4,r5
+    dt r6
+    bf copy_longs_loop
+    bra copy_words_done
+    nop
+copy_words_short:
     shlr r6
 copy_words_loop:
     mov.w @r4+,r0

@@ -4,6 +4,7 @@
 stream_pump:
     sts.l pr,@-r15
     mov.l r8,@-r15
+    profile_start 216
     mov.l #CD_ERROR,r1
     mov.l @r1,r0
     tst r0,r0
@@ -50,6 +51,7 @@ stream_pump_read:
 stream_pump_partial:
     mov.l r0,@(FILL_SECTOR,r14)
 stream_pump_done:
+    profile_end 216,188
     mov.l @r15+,r8
     lds.l @r15+,pr
     rts

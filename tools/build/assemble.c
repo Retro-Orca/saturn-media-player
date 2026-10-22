@@ -83,7 +83,7 @@ static void assemble(const char *source, const char *object, const char *listing
 void assemble_program(void)
 {
     assemble("src/main.asm", "build/player.p", "build/player.lst");
-    object_to_binary("build/player.p", "build/1ST.BIN", 0x06004000, 0x06078000);
+    object_to_binary("build/player.p", "build/1ST.BIN", 0x06004000, 0x06020000);
     if (file_size("build/1ST.BIN") > (256 - 32) * SECTOR_BYTES) fail("Boot executable exceeds its disc reservation");
     assemble("src/boot/entry.asm", "build/boot.p", "build/boot.lst");
     object_to_binary("build/boot.p", "build/aip.bin", 0x06002E80, 0x06003000);

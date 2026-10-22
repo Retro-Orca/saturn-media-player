@@ -8,8 +8,8 @@
 void write_video_header(FILE *file, uint32_t frames, uint32_t groups)
 {
     uint8_t header[SECTOR_BYTES] = {0};
-    memcpy(header, "SVT1", 4);
-    put_be32(header + 4, 1);
+    memcpy(header, "SVT2", 4);
+    put_be32(header + 4, 2);
     put_be32(header + 8, VIDEO_WIDTH);
     put_be32(header + 12, VIDEO_HEIGHT);
     put_be32(header + 16, frames);
@@ -18,6 +18,8 @@ void write_video_header(FILE *file, uint32_t frames, uint32_t groups)
     put_be32(header + 28, GROUP_SECTORS);
     put_be32(header + 32, 22050);
     put_be32(header + 36, AUDIO_SAMPLES);
+    put_be32(header + 40, CODEBOOK_ENTRIES);
+    put_be32(header + 44, SOUND_OFFSET);
     write_all(file, header, sizeof(header));
 }
 
@@ -27,10 +29,11 @@ void read_video_header(Movie *movie)
     FILE *file = open_file(movie->encoded, "rb");
     read_all(file, header, sizeof(header));
     fclose(file);
-    if (memcmp(header, "SVT1", 4) || get_be32(header + 4) != 1 ||
+    if (memcmp(header, "SVT2", 4) || get_be32(header + 4) != 2 ||
         get_be32(header + 8) != VIDEO_WIDTH || get_be32(header + 12) != VIDEO_HEIGHT ||
         get_be32(header + 24) != GROUP_FRAMES || get_be32(header + 28) != GROUP_SECTORS ||
-        get_be32(header + 32) != 22050 || get_be32(header + 36) != AUDIO_SAMPLES) fail("Invalid SVT header: %s", movie->encoded);
+        get_be32(header + 32) != 22050 || get_be32(header + 36) != AUDIO_SAMPLES ||
+        get_be32(header + 40) != CODEBOOK_ENTRIES || get_be32(header + 44) != SOUND_OFFSET) fail("Invalid SVT header: %s", movie->encoded);
     movie->frames = get_be32(header + 16);
     movie->groups = get_be32(header + 20);
     if (!movie->frames || !movie->groups || movie->groups != (movie->frames + GROUP_FRAMES - 1) / GROUP_FRAMES ||
@@ -56,7 +59,7 @@ void encode_movie(Movie *movie, int force)
         int version = 0;
         int fields = fscanf(cache, "%d %llx", &version, &previous);
         fclose(cache);
-        if (fields == 2 && version == 1 && previous == hash) {
+        if (fields == 2 && version == 3 && previous == hash) {
             read_video_header(movie);
             printf("Cached: %s\n", movie->source);
             return;
@@ -105,7 +108,7 @@ void encode_movie(Movie *movie, int force)
     write_video_header(output, movie->frames, movie->groups);
     fclose(output);
     FILE *cache = open_file(cache_path, "wb");
-    fprintf(cache, "1 %016llx\n", (unsigned long long)hash);
+    fprintf(cache, "3 %016llx\n", (unsigned long long)hash);
     fclose(cache);
     read_video_header(movie);
 }

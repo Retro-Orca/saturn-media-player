@@ -65,12 +65,12 @@ static uint32_t state_word(const uint8_t *data, unsigned offset)
 
 static int read_state(uint8_t *data)
 {
-    return read_memory(ram + 0xD0000, data, 128);
+    return read_memory(ram + 0xD0000, data, 256);
 }
 
 static void print_state(void)
 {
-    uint8_t data[128];
+    uint8_t data[256];
     if (!read_state(data)) { puts("Cannot read player state"); return; }
     printf("{\"mode\":%u,\"selected\":%u,\"group\":%u,\"frame_in_group\":%u,\"frame\":%u,\"filled_group\":%u,\"fill_sector\":%u,\"vblanks\":%u,\"cd_error\":%u,\"audio_error\":%u,\"underruns\":%u,\"pad\":%u,\"timer_ticks\":%u}\n",
         state_word(data, 12), state_word(data, 8), state_word(data, 20), state_word(data, 24), state_word(data, 28),
@@ -118,11 +118,11 @@ static void dump_bitmap(uintptr_t vram, const char *path)
 
 static void dump_tiles(uintptr_t vram, const char *path)
 {
-    uint8_t state[128];
+    uint8_t state[256];
     if (!vram || !read_state(state)) return;
     uint8_t *data = malloc(524288);
     if (!data || !read_memory(vram, data, 524288)) { free(data); return; }
-    unsigned map = 0x40000 + ((state_word(state, 52) ^ 1) & 1) * 16384;
+    unsigned map = 0x30000 + ((state_word(state, 52) ^ 1) & 1) * 0x40000;
     FILE *file = fopen(path, "wb");
     if (!file) { free(data); return; }
     fprintf(file, "P6\n320 224\n255\n");
@@ -150,7 +150,7 @@ static void press_button(uint32_t button)
 
 static uint32_t sample_word(unsigned offset)
 {
-    uint8_t state[128];
+    uint8_t state[256];
     if (!read_state(state)) { puts("Player state became unavailable"); exit(1); }
     return state_word(state, offset);
 }
@@ -170,7 +170,7 @@ static void exercise_player(uintptr_t vram)
     press_button(0x0800);
     expect_mode(1);
     Sleep(250);
-    uint8_t before[128], after[128];
+    uint8_t before[256], after[256];
     read_state(before);
     Sleep(1500);
     read_state(after);
@@ -237,12 +237,52 @@ static void exercise_menu(uintptr_t vram)
     puts("PASS: 10 video entries, page change, up/down wrap, Japanese title bitmap");
 }
 
+static void continuous_playback(uintptr_t vram)
+{
+    press_button(0x0800);
+    expect_mode(1);
+    Sleep(250);
+    uint32_t frame = sample_word(28), ticks = sample_word(104), starts = sample_word(140);
+    Sleep(1500);
+    uint32_t frames = sample_word(28) - frame, elapsed = sample_word(104) - ticks;
+    printf("Continuous playback: %u frames, %.2f ticks/frame\n", frames, (double)elapsed / frames);
+    unsigned group = sample_word(20);
+    uint8_t actual[55296], expected[55296];
+    FILE *stream = fopen("build/media/000.svt", "rb");
+    if (!stream || !read_memory(ram + 0x20000 + (group & 7) * 55296, actual, sizeof(actual))) exit(1);
+    _fseeki64(stream, 2048 + (int64_t)group * 55296, SEEK_SET);
+    if (fread(expected, 1, sizeof(expected), stream) != sizeof(expected)) exit(1);
+    fclose(stream);
+    for (unsigned i = 0; i < sizeof(expected); ++i) {
+        if (actual[i ^ byte_swap] != expected[i]) {
+            printf("CD data mismatch at group %u byte %u: %02x instead of %02x\n", group, i, actual[i ^ byte_swap], expected[i]);
+            for (unsigned j = 0; j < 32; ++j) printf("%02x", actual[j ^ byte_swap]);
+            puts("");
+            for (unsigned j = 0; j < 32; ++j) printf("%02x", expected[j]);
+            puts(""); exit(1);
+        }
+    }
+    puts("PASS: CD DMA bytes match encoded video");
+    dump_tiles(vram, "build/playback.ppm");
+    expect_mode(0);
+    printf("Audio: %u KEY_ON events, %u queued groups; max interval %u, late intervals %u\n",
+        sample_word(140), sample_word(144), sample_word(116), sample_word(120));
+    print_state();
+    printf("Profile max ticks: decode=%u dma=%u prefetch=%u audio=%u cd=%u dictionary=%u\n",
+        sample_word(172), sample_word(176), sample_word(180), sample_word(184), sample_word(188), sample_word(192));
+    if (!frames || starts != 1 || sample_word(140) != 1 || sample_word(120) || sample_word(80) || sample_word(64) || sample_word(76)) {
+        puts("Continuous playback failed"); exit(1);
+    }
+    puts("PASS: continuous PCM ring and one frame per display interval");
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2) { puts("Usage: inspect.exe PID [--exercise]"); return 1; }
     int exercise = argc > 2 && !strcmp(argv[2], "--exercise");
     int menu_test = argc > 2 && !strcmp(argv[2], "--menu-test");
-    process = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ | ((exercise || menu_test) ? PROCESS_VM_WRITE | PROCESS_VM_OPERATION : 0), FALSE, (DWORD)strtoul(argv[1], NULL, 10));
+    int continuous = argc > 2 && !strcmp(argv[2], "--continuous");
+    process = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ | ((exercise || menu_test || continuous) ? PROCESS_VM_WRITE | PROCESS_VM_OPERATION : 0), FALSE, (DWORD)strtoul(argv[1], NULL, 10));
     if (!process) { printf("OpenProcess failed: %lu\n", GetLastError()); return 1; }
     uint8_t pattern[8];
     FILE *file = fopen("build/1ST.BIN", "rb");
@@ -283,6 +323,7 @@ int main(int argc, char **argv)
         exercise_player(vram);
     }
     if (menu_test) exercise_menu(vram);
+    if (continuous) continuous_playback(vram);
     CloseHandle(process);
     return 0;
 }

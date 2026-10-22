@@ -59,7 +59,7 @@ void encode_movie(Movie *movie, int force)
         int version = 0;
         int fields = fscanf(cache, "%d %llx", &version, &previous);
         fclose(cache);
-        if (fields == 2 && version == 3 && previous == hash) {
+        if (fields == 2 && version == 4 && previous == hash) {
             read_video_header(movie);
             printf("Cached: %s\n", movie->source);
             return;
@@ -108,7 +108,7 @@ void encode_movie(Movie *movie, int force)
     write_video_header(output, movie->frames, movie->groups);
     fclose(output);
     FILE *cache = open_file(cache_path, "wb");
-    fprintf(cache, "3 %016llx\n", (unsigned long long)hash);
+    fprintf(cache, "4 %016llx\n", (unsigned long long)hash);
     fclose(cache);
     read_video_header(movie);
 }

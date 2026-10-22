@@ -42,6 +42,7 @@ static void check_packet_budget(uint8_t *rgb, uint8_t *group, const uint8_t *sou
 
 int run_self_tests(void)
 {
+    test_temporal_budget();
     const size_t frame_size = VIDEO_WIDTH * VIDEO_HEIGHT * 3;
     uint8_t *rgb = allocate(frame_size * GROUP_FRAMES);
     /* 端のタイルと色の並びを識別できる入力で辞書と番号の往復を検証する */

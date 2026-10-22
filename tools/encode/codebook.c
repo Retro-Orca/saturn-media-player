@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Copyright (C) 2026 Retro-Orca */
 
-#include "../common/common.h"
+#include "codebook.h"
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
@@ -86,4 +86,5 @@ void train_codebook(const uint8_t *tiles, int count, uint8_t *centers)
     }
     free(errors);
     free(sums);
+    refine_codebook(tiles, (unsigned)count, centers);
 }

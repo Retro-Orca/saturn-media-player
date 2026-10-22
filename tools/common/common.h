@@ -67,6 +67,7 @@ void train_codebook(const uint8_t *tiles, int count, uint8_t *centers);
 unsigned nearest_codeword(const uint8_t *tile, const uint8_t *centers);
 unsigned tile_distance(const uint8_t *left, const uint8_t *right);
 void encode_group(FILE *output, const uint8_t *rgb, const uint8_t *audio);
+void select_updates(const uint8_t *tiles, const uint8_t *centers, const uint16_t *desired, uint16_t *masks);
 void make_font_and_titles(Movie *movies, int count);
 void write_catalog(Movie *movies, int count);
 void assemble_program(void);
@@ -75,5 +76,6 @@ void validate_build_dependencies(void);
 void create_disc(Movie *movies, int count);
 void verify_disc(const char *path);
 int run_self_tests(void);
+void test_temporal_budget(void);
 
 #endif

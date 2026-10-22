@@ -9,6 +9,11 @@
 
 enum { WIDTH = 320, HEIGHT = 224, PIXELS = WIDTH * HEIGHT, GROUP = 55296 };
 
+static unsigned big32(const uint8_t *bytes)
+{
+    return (unsigned)bytes[0] << 24 | (unsigned)bytes[1] << 16 | (unsigned)bytes[2] << 8 | bytes[3];
+}
+
 static void read_exact(FILE *file, void *bytes, size_t length)
 {
     if (fread(bytes, 1, length, file) != length) { fputs("Truncated quality input\n", stderr); exit(1); }
@@ -18,14 +23,17 @@ static void decode(const uint8_t *group, unsigned frame, int version, uint8_t *r
 {
     if (version == 2) {
         const uint8_t *directory = group + 12288 + frame * 4;
-        unsigned offset = (unsigned)directory[0] << 24 | (unsigned)directory[1] << 16 | (unsigned)directory[2] << 8 | directory[3];
+        unsigned offset = big32(directory);
+        if (offset < 12336 || offset > 46476 - 140) { fputs("Invalid frame offset\n", stderr); exit(1); }
         const uint8_t *map = group + offset, *packet = map + 140;
         for (unsigned cell = 0; cell < 1120; ++cell) {
             if (!(map[cell / 8] & (0x80 >> (cell % 8)))) continue;
+            if (packet + 5 > group + 46476) { fputs("Invalid video packet\n", stderr); exit(1); }
             uint64_t packed = 0;
             for (unsigned b = 0; b < 5; ++b) packed = packed << 8 | *packet++;
             for (unsigned q = 0; q < 4; ++q) {
                 unsigned index = (unsigned)((packed >> (27 - q * 9)) & 511);
+                if (index >= 384) { fputs("Invalid dictionary index\n", stderr); exit(1); }
                 for (unsigned y = 0; y < 4; ++y)
                     for (unsigned x = 0; x < 4; ++x) {
                         unsigned p = index * 32 + (y * 4 + x) * 2;
@@ -77,16 +85,19 @@ int main(int argc, char **argv)
     if (!before || !after || !reference) return 1;
     uint8_t header[2048], old_group[GROUP], new_group[GROUP];
     read_exact(before, header, sizeof(header));
-    if (memcmp(header, "SVT1", 4)) return 1;
+    int before_version = !memcmp(header, "SVT1", 4) ? 1 : !memcmp(header, "SVT2", 4) ? 2 : 0;
+    unsigned expected = big32(header + 16);
+    if (!before_version || !expected || big32(header + 8) != WIDTH || big32(header + 12) != HEIGHT) return 1;
     read_exact(after, header, sizeof(header));
-    if (memcmp(header, "SVT2", 4)) return 1;
+    if (memcmp(header, "SVT2", 4) || big32(header + 16) != expected || big32(header + 8) != WIDTH || big32(header + 12) != HEIGHT) return 1;
     uint8_t *raw = malloc(PIXELS * 3), *old_rgb = malloc(PIXELS * 3), *new_rgb = malloc(PIXELS * 3);
     if (!raw || !old_rgb || !new_rgb) return 1;
     double errors[2] = {0}, seams[2] = {0};
     unsigned frames = 0;
-    while (fread(raw, 1, PIXELS * 3, reference) == PIXELS * 3) {
+    while (frames < expected) {
+        read_exact(reference, raw, PIXELS * 3);
         if (!(frames % 12)) { read_exact(before, old_group, GROUP); read_exact(after, new_group, GROUP); }
-        decode(old_group, frames % 12, 1, old_rgb);
+        decode(old_group, frames % 12, before_version, old_rgb);
         decode(new_group, frames % 12, 2, new_rgb);
         for (unsigned i = 0; i < PIXELS * 3; ++i) {
             raw[i] >>= 3;
@@ -101,7 +112,7 @@ int main(int argc, char **argv)
         }
         ++frames;
     }
-    if (!frames) return 1;
+    if (fgetc(reference) != EOF || ferror(reference)) { fputs("Reference frame count mismatch\n", stderr); return 1; }
     printf("{\"frames\":%u,\"before_psnr_db\":%.3f,\"after_psnr_db\":%.3f,\"squared_error_reduction_percent\":%.2f,\"boundary_error_reduction_percent\":%.2f}\n",
         frames, 10 * log10(961.0 * frames * PIXELS * 3 / errors[0]), 10 * log10(961.0 * frames * PIXELS * 3 / errors[1]),
         (1 - errors[1] / errors[0]) * 100, (1 - seams[1] / seams[0]) * 100);

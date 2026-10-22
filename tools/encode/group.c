@@ -6,37 +6,25 @@
 #include <string.h>
 
 /* 同じ画素を再利用して浮いた容量を細かい辞書へ配分する */
-static unsigned encode_maps(uint8_t *group, const uint8_t *tiles, const uint8_t *centers,
-                            const uint16_t *desired, const unsigned *errors, unsigned threshold)
+static void encode_maps(uint8_t *group, const uint16_t *desired, const uint16_t *masks)
 {
-    uint16_t retained[FRAME_PATCHES * 4];
-    unsigned position = CODEBOOK_BYTES + GROUP_FRAMES * 4, updates = 0;
+    unsigned position = CODEBOOK_BYTES + GROUP_FRAMES * 4;
     for (unsigned frame = 0; frame < GROUP_FRAMES; ++frame) {
         unsigned start = position;
-        if (group) {
-            put_be32(group + CODEBOOK_BYTES + frame * 4, start);
-            memset(group + start, 0, FRAME_BANK_BYTES);
-        }
+        put_be32(group + CODEBOOK_BYTES + frame * 4, start);
+        memset(group + start, 0, FRAME_BANK_BYTES);
         position += FRAME_BANK_BYTES;
         for (unsigned cell = 0; cell < FRAME_PATCHES; ++cell) {
-            unsigned patch = frame * FRAME_PATCHES + cell, previous = 0;
-            if (frame)
-                for (unsigned q = 0; q < 4; ++q)
-                    previous += tile_distance(tiles + (patch * 4 + q) * TILE_COMPONENTS, centers + retained[cell * 4 + q] * TILE_COMPONENTS);
-            if (frame && previous <= errors[patch] + threshold) continue;
-            ++updates;
-            for (unsigned q = 0; q < 4; ++q) retained[cell * 4 + q] = desired[patch * 4 + q];
-            if (group) {
-                if (position + 5 > SOUND_OFFSET) fail("Video packet budget exceeded");
-                group[start + cell / 8] |= (uint8_t)(0x80 >> (cell % 8));
-                uint64_t packed = 0;
-                for (unsigned q = 0; q < 4; ++q) packed = packed << 9 | desired[patch * 4 + q];
-                for (unsigned b = 0; b < 5; ++b) group[position + b] = (uint8_t)(packed >> ((4 - b) * 8));
-            }
+            unsigned patch = frame * FRAME_PATCHES + cell;
+            if (!(masks[cell] & (1u << frame))) continue;
+            if (position + 5 > SOUND_OFFSET) fail("Video packet budget exceeded");
+            group[start + cell / 8] |= (uint8_t)(0x80 >> (cell % 8));
+            uint64_t packed = 0;
+            for (unsigned q = 0; q < 4; ++q) packed = packed << 9 | desired[patch * 4 + q];
+            for (unsigned b = 0; b < 5; ++b) group[position + b] = (uint8_t)(packed >> ((4 - b) * 8));
             position += 5;
         }
     }
-    return updates;
 }
 
 
@@ -67,26 +55,15 @@ void encode_group(FILE *output, const uint8_t *rgb, const uint8_t *audio)
             put_be16(group + entry * TILE_BYTES + pixel * 2, value);
         }
     uint16_t *desired = allocate((size_t)patches * 4 * sizeof(*desired));
-    unsigned *errors = allocate((size_t)patches * sizeof(*errors));
     for (int tile = 0; tile < patches * 4; ++tile) {
         unsigned index = nearest_codeword(tiles + tile * TILE_COMPONENTS, centers);
         desired[tile] = (uint16_t)index;
-        errors[tile / 4] += tile_distance(tiles + tile * TILE_COMPONENTS, centers + index * TILE_COMPONENTS);
     }
-    const unsigned budget = (SOUND_OFFSET - CODEBOOK_BYTES - GROUP_FRAMES * (4 + FRAME_BANK_BYTES)) / 5;
-    unsigned low = 0, high = 0;
-    if (encode_maps(NULL, tiles, centers, desired, errors, 0) > budget) {
-        high = 32;
-        while (encode_maps(NULL, tiles, centers, desired, errors, high) > budget) high *= 2;
-        while (low + 1 < high) {
-            unsigned middle = low + (high - low) / 2;
-            if (encode_maps(NULL, tiles, centers, desired, errors, middle) <= budget) high = middle;
-            else low = middle;
-        }
-    }
-    encode_maps(group, tiles, centers, desired, errors, high);
+    uint16_t masks[FRAME_PATCHES];
+    select_updates(tiles, centers, desired, masks);
+    encode_maps(group, desired, masks);
     memcpy(group + SOUND_OFFSET, audio, AUDIO_BYTES);
-    free(desired); free(errors);
+    free(desired);
     write_all(output, group, GROUP_BYTES);
     free(group); free(centers); free(tiles);
 }

@@ -17,7 +17,7 @@ try {
     $env:PATH = (Split-Path -Parent $compiler) + ';' + $env:PATH
     New-Item -ItemType Directory -Path build -Force | Out-Null
     $sources = @(Get-ChildItem -LiteralPath tools -Recurse -Filter '*.c' | Where-Object { $_.Directory.Name -notin @('preview','runtime') } | ForEach-Object FullName)
-    $sources += Join-Path $PSScriptRoot 'tests\codec.c'
+    $sources += @(Get-ChildItem -LiteralPath tests -Filter '*.c' | ForEach-Object FullName)
     & $compiler -std=c11 -O3 -Wall -Wextra -Werror -msse2 -municode -static $sources -lgdi32 -o build\saturn-build.exe
     if ($LASTEXITCODE -ne 0) { throw 'Cビルドツールのコンパイルに失敗しました' }
     & $compiler -std=c11 -O2 -Wall -Wextra -Werror -municode -mwindows -static tools\preview\main.c -o build\preview.exe
